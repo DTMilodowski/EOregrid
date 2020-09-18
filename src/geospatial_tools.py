@@ -74,7 +74,8 @@ def regrid_single(Yorig,Xorig,Ydest,Xdest,Ysize,Xsize,
     for iY, y in enumerate(Ydest):
         for iX, x in enumerate(Xdest):
             counter+=1
-            print('Regridding pixel %i / %i' % (counter, len(Ydest)*len(Xdest)),end='\r')
+            if counter%100 == 0:
+                print('Regridding pixel %i / %i' % (counter, len(Ydest)*len(Xdest)),end='\r')
             slcarea = areas[(iY*Ysize):((iY+1)*Ysize),(iX*Xsize):((iX+1)*Xsize)]
 
             #if there's a mask, extract the data
