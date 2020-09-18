@@ -16,8 +16,9 @@ Date: 28/04/2020
 """
 import numpy as np
 import xarray as xr
-import glob
+import glob as glob
 import geospatial_tools as gst
+
 
 """
 --------------------------------------------------------------------------------
@@ -41,8 +42,9 @@ regridLAI
                            correspond to cell centre
 --------------------------------------------------------------------------------
 """
-def regridLAI(path2orig,path2dest,Xres,Yres,variables=['LAI','LAI_ERR'],
-                projected=False,mask=None, extent=None, coords_cell_centre = False):
+def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
+            variables=['LAI','LAI_ERR'], aggregation_mode = ['mean','quadrature'],
+            projected=False, subset_label='?'):
     # First do a quick check to ensure we don't overwrite an existing file
     if len(glob.glob(path2dest)) > 0:
         print('Destination file "%s" already exists, please remove before proceeding' % (glob.glob(path2dest)[0]))
@@ -53,33 +55,34 @@ def regridLAI(path2orig,path2dest,Xres,Yres,variables=['LAI','LAI_ERR'],
     # Open the reference dataset
     ref = xr.open_dataset(path2orig)
     dim_names = gst.check_dim_names(ref)
-    if len(dim_names)<2:
-        return 2
-    else:
+    try:
         Xvar,Yvar=dim_names
-
-    # Set up grids
-    Yorig = ref.coords[Yvar].values
-    Xorig = ref.coords[Xvar].values
-    temporal = False
-    if 'time' in ref.dims:
-        temporal=True
+    except:
+        return 2
 
     # get resolution
-    Yorig_res = np.abs(Yorig[1]-Yorig[0])
-    Xorig_res = np.abs(Xorig[1]-Xorig[0])
+    Yorig_res = np.abs(ref[Yvar].values[1]-ref[Yvar].values[0])
+    Xorig_res = np.abs(ref[Xvar].values[1]-ref[Xvar].values[0])
 
-    # adjust the lat/lon to centre of cell
-    if not coords_cell_centre:
-        Xorig = Xorig+Xorig_res/2.
-        Yorig = Yorig-Yorig_res/2.
-
-    # Apply mask to bbox extent if required
     if extent is not None:
-        N,S,E,W = extent
-        Ymask = np.all((Yorig<=N+Yres,Yorig>=S-Yres),axis=0); Yorig = Yorig[Ymask]
-	    Xmask = np.all((Xorig<=E+Xres,Xorig>=W-Xres),axis=0); Xorig = Xorig[Xmask]
+        N,S,E,W = extent[:]
+        if 'lat' in dim_names and 'lon' in dim_names:
+            if ref[Yvar].values[1]<ref[Yvar].values[0]:
+                ref=ref.sel(lon=slice(W,E),lat=slice(N,S))
+            else:
+                ref=ref.sel(lon=slice(W,E),lat=slice(S,N))
+        elif 'y' in dim_names and 'x' in dim_names:
+            if ref[Yvar].values[1]<ref[Yvar].values[0]:
+                ref=ref.sel(x=slice(W,E),y=slice(N,S))
+            else:
+                ref=ref.sel(x=slice(W,E),y=slice(S,N))
+        else:
+            print('Dimension names not currently accepted', dim_names)
+            return 3
 
+    # Reset grid
+    Yorig = ref.coords[Yvar].values
+    Xorig = ref.coords[Xvar].values
 
     # define scanning window size
     Ysize = np.abs(np.round(Yres/Yorig_res).astype('i'))
@@ -87,22 +90,54 @@ def regridLAI(path2orig,path2dest,Xres,Yres,variables=['LAI','LAI_ERR'],
 
     # define destination lat / lon arrays
     Ydest = np.arange(N-Yres/2.,S,-Yres)
-	Xdest = np.arange(W+Xres/2.,E,Xres)
+    Xdest = np.arange(W+Xres/2.,E,Xres)
 
     # calculate grid cell area
     areas = gst.calculate_cell_areas(Yorig,Xorig,projected=projected)
 
     # regrid to new resolution
+    regridded = {}
     for iv,varname in enumerate(variables):
         print("Regridding variable %s ... " % (varname))
         # clip variable grid using lat_mask and lon_mask
-        if temporal:
-        	variable = ref.variables[varname].values[:,Ymask,:]
-	    	variable = variable[:,:,Xmask]
-            target,fraction=gst.regrid_single(Yorig,Xorig,Ydest,Xdest,Ysize,Xsize,
-            areas,variable,mask=mask,temporal=temporal)
-	    else:
-            variable = ref.variables[varname][Ymask,:]
-	    	variable = variable[:,Xmask]
-            target,fraction=gst.regrid_single(Yorig,Xorig,Ydest,Xdest,Ysize,Xsize,
-            areas,variable,mask=mask,temporal=temporal)
+        variable = ref.variables[varname].values
+        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+                                        areas, variable, mask=mask,
+                                        aggregation_mode=aggregation_mode[iv])
+        regridded[varname]=var_regrid.copy()
+        if iv==0:
+            regridded['fraction']=fraction.copy()
+
+    # compile new netcdf file
+    if projected:
+        coords = {Yvar: ([Yvar],Ydest,{'units':'m','long_name':'y coordinate'}),
+                Xvar: ([Xvar],Xdest,{'units':'m','long_name':'x coordinate'})}
+    else:
+        coords = {Yvar: ([Yvar],Ydest,{'units':'degrees_north','long_name':'latitude'}),
+                Xvar: ([Xvar],Xdest,{'units':'degrees_east','long_name':'longitude'})}
+
+    attrs = ref.attrs.copy()
+    attrs['title'] += '; tiled at %.3f for %s subset' % (Xres,subset_label)
+    attrs['history'] += '; subsetted and regridded'
+
+    data_vars = {}
+    for iv,varname in enumerate(list(regridded.keys())):
+        try:
+            var_attrs = ref[varname].attrs.copy()
+            var_attrs['long_name'] += '; tiled at %.3f for %s subset' % (Xres,subset_label)
+            var_attrs['standard_name'] += ' for %s subset' % (Xres,subset_label)
+            data_vars[varname] = (['lat','lon'],regridded[varname],var_attrs.copy())
+        except:
+            if varname=='fraction':
+                var_attrs = {}
+                var_attrs['long_name'] = 'Fraction of grid cell occupied by %s' % (subset_label)
+                var_attrs['standard_name'] = 'fraction %s' % (subset_label)
+                var_attrs['grid_mapping'] = 'crs'
+                var_attrs['units'] = ''
+                data_vars[varname] = (['lat','lon'],regridded[varname],var_attrs.copy())
+            else:
+                print('variable not found')
+
+    regrid_ds = xr.Dataset(data_vars=data_vars,coords=coords)
+    regrid_ds.to_netcdf(path=path2dest)
+    return regrid_ds
