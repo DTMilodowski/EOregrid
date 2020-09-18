@@ -122,20 +122,17 @@ def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
 
     data_vars = {}
     for iv,varname in enumerate(list(regridded.keys())):
-        if varname in ref.keys():
-            var_attrs = ref[varname].attrs.copy()
-            var_attrs['long_name'] += '; tiled at %.3f for %s subset' % (Xres,subset_label)
-            var_attrs['standard_name'] += ' for %s subset' % subset_label
-            data_vars[varname] = (['lat','lon'],regridded[varname],var_attrs.copy())
-        elif varname=='fraction':
-                var_attrs = {}
-                var_attrs['long_name'] = 'Fraction of grid cell occupied by %s' % subset_label
-                var_attrs['standard_name'] = 'fraction %s' % subset_label
-                var_attrs['grid_mapping'] = 'crs'
-                var_attrs['units'] = ''
-                data_vars[varname] = (['lat','lon'],regridded[varname],var_attrs.copy())
+        var_attrs = {}
+        if varname == 'fraction':
+            var_attrs['long_name'] = 'Fraction of grid cell occupied by %s' % subset_label
+            var_attrs['standard_name'] = 'fraction %s' % subset_label
+            var_attrs['units'] = ''
         else:
-                print('variable not found')
+            var_attrs['long_name'] = '%s; tiled at %.3f for %s subset' % (ref[varname].attrs['long_name'],Xres,subset_label)
+            var_attrs['standard_name'] = '%s_%s' % (ref[varname].attrs['standard_name'],subset_label)
+            var_attrs['units'] = ''
+
+        data_vars[varname] = (['lat','lon'],regridded[varname],var_attrs.copy())
 
     regrid_ds = xr.Dataset(data_vars=data_vars,coords=coords)
     regrid_ds.to_netcdf(path=path2dest)
