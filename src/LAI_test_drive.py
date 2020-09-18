@@ -78,12 +78,13 @@ lc_id = [1,2,3,4,5,6]
 dx_target = 0.05
 dy_target = 0.05
 extent = [UK300lat[-1]+dy/2,UK300lat[0]-dy/2,UK300lon[-1]+dx/2,UK300lon[0]-dx/2] # N,S,E,W
-for ii,lc in enumarete(landcover):
+for ii,lc in enumerate(landcover):
     path2dest_sub = '%s%s/' % (path2dest, lc)
-    for dir in path2orig:
+    for jj,dir in enumerate(path2orig):
+        print('processing layer %i of %i, for %s' % (jj+1,len(path2orig),lc))
         input_nc = glob.glob('%s/*nc' % dir)[0]
-        output_nc = '%s_%s_5km.nc' % (input_nc[:-3],lc)
+        output_nc = '%s%s_%s_5km.nc' % (path2dest_sub,input_nc.split('/')[-1][:-3],lc)
         regrid_ds = regridLAI.regridLAI(input_nc, output_nc, dx_target, dy_target,
                     mask=(lc_300m==lc_id[ii]), subset_label=lc, extent=extent,
-                    variables=['LAI','LAI_ERR'], aggregation_mode = ['mean','quadrature'],
+                    variables=['LAI','RMSE'], aggregation_mode = ['mean','quadrature'],
                     projected=False)
