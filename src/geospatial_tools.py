@@ -76,7 +76,6 @@ def regrid_single(Yorig,Xorig,Ydest,Xdest,Ysize,Xsize,
             counter+=1
             if counter%100 == 0:
                 print('Regridding pixel %i / %i' % (counter, len(Ydest)*len(Xdest)),end='\r')
-            slcarea = areas[(iY*Ysize):((iY+1)*Ysize),(iX*Xsize):((iX+1)*Xsize)]
 
             #if there's a mask, extract the data
             if mask is not None:
@@ -86,17 +85,19 @@ def regrid_single(Yorig,Xorig,Ydest,Xdest,Ysize,Xsize,
 
             #check that there's data within mask at this pixel
             if slcmask.sum() != 0:
+                # extract contributing pixel areas
+                slcarea = areas[(iY*Ysize):((iY+1)*Ysize),(iX*Xsize):((iX+1)*Xsize)]
                 # extract the high res pixels inside the destinatino pixel
                 slcdata = variable[(iY*Ysize):((iY+1)*Ysize),(iX*Xsize):((iX+1)*Xsize)]
+
                 fraction[iY,iX]=(slcmask*slcarea).sum()/slcarea.sum()
 
                 if aggregation_mode == 'mean':
-                    target[iY,iX] = (slcdata*slcarea).sum()/slcarea.sum()
+                    target[iY,iX] = np.nansum(slcmask*slcdata*slcarea)/np.nansum(slcmask*slcarea)
                 elif aggregation_mode == 'quadrature': # for uncertainties
-                    target[iY,iX] = np.sqrt(((slcdata*slcarea)**2).sum())/slcarea.sum()
+                    target[iY,iX] = np.sqrt(np.nansum(((slcmask*slcdata*slcarea)/np.nansum(slcmask*slcarea))**2))
                 else: # assume mean if not quadrature
-                    target[iY,iX] = (slcdata*slcarea).sum()/slcarea.sum()
-
+                    target[iY,iX] = np.nansum(slcmask*slcdata*slcarea)/np.nansum(slcmask*slcarea)
 
     return target,fraction
 
