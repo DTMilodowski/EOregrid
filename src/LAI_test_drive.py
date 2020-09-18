@@ -85,6 +85,6 @@ for ii,lc in enumerate(landcover):
         input_nc = glob.glob('%s/*nc' % dir)[0]
         output_nc = '%s%s_%s_5km.nc' % (path2dest_sub,input_nc.split('/')[-1][:-3],lc)
         regrid_ds = regridLAI.regridLAI(input_nc, output_nc, dx_target, dy_target,
-                    mask=(lc_300m==lc_id[ii]), subset_label=lc, extent=extent,
+                    mask=(lc_300m.values==lc_id[ii]), subset_label=lc, extent=extent,
                     variables=['LAI','RMSE'], aggregation_mode = ['mean','quadrature'],
                     projected=False)
