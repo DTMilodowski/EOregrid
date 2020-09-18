@@ -1,3 +1,5 @@
+import numpy as np
+
 """
 --------------------------------------------------------------------------------
 check_dim_names
@@ -50,8 +52,8 @@ calculate_cell_areas
 def calculate_cell_areas(Y,X,projected=False):
     #calculate grid cell area
     Yres = Y[1]-Y[0]; Xres = X[1]-X[0]
-    areas = np.zeros([Y.size,X.size])
-	print(areas.shape)
+    areas = np.zeros((Y.size,X.size))
+    print(areas.shape)
     if projected:
         areas+=np.abs(Xres*Yres)
     else:
@@ -62,12 +64,9 @@ def calculate_cell_areas(Y,X,projected=False):
 
 
 def regrid_single(Yorig,Xorig,Ydest,Xdest,Ysize,Xsize,
-            areas,variable,mask=None,temporal=False):
-    # Set up arrays
-    if temporal = True:
-        target = np.zeros([1,Ydest.size,Xdest.size])*np.nan
-    else:
-        target = np.zeros([Ydest.size,Xdest.size])*np.nan
+            areas,variable,mask=None,aggregation_mode='mean'):
+    # Set up array
+    target = np.zeros([Ydest.size,Xdest.size])*np.nan
     fraction = np.zeros(target.shape)*np.nan
     counter = 0
 
@@ -75,8 +74,8 @@ def regrid_single(Yorig,Xorig,Ydest,Xdest,Ysize,Xsize,
     for iY, y in enumerate(Ydest):
         for iX, x in enumerate(Xdest):
             counter+=1
-            print '\rRegridding pixel %i / %i' % (counter, len(Ydest)*len(Xdest))
-		    slcarea = areas[(iY*Ysize):((iY+1)*Ysize),(iX*Xsize):((iX+1)*Xsize)]
+            print('Regridding pixel %i / %i' % (counter, len(Ydest)*len(Xdest)),end='\r')
+            slcarea = areas[(iY*Ysize):((iY+1)*Ysize),(iX*Xsize):((iX+1)*Xsize)]
 
             #if there's a mask, extract the data
             if mask is not None:
@@ -87,35 +86,16 @@ def regrid_single(Yorig,Xorig,Ydest,Xdest,Ysize,Xsize,
             #check that there's data within mask at this pixel
             if slcmask.sum() != 0:
                 # extract the high res pixels inside the destinatino pixel
-                if temporal:
-                    slcdata = variable[0,(iY*Ysize):((iY+1)*Ysize),(iX*Xsize):((iX+1)*Xsize)]
-                else:
-                    slcdata = variable[(iY*Ysize):((iY+1)*Ysize),(iX*Xsize):((iX+1)*Xsize)]
+                slcdata = variable[(iY*Ysize):((iY+1)*Ysize),(iX*Xsize):((iX+1)*Xsize)]
+                fraction[iY,iX]=(slcmask*slcarea).sum()/slcarea.sum()
 
-                # if there is a built in mask to the dataset, update (this might be redundant in new version)
-                if 'mask' in dir(slcdata):
-                    #replace the mask where the land cover is not taken into account
-			        print(variable.shape,slcdata.shape)
-                    slcdata.mask[~slcmask] = True
-                    if slcdata.mask.sum() != slcdata.size:
-				        print(iY,iX,target.shape,slcdata.shape,slcarea.shape)
-                    if temporal:
-                        target[0,iY,iX] = (slcdata*slcarea).sum()/(~slcdata.mask*slcarea).sum()
-				    else:
-                        target[iY,iX] = (slcdata*slcarea).sum()/(~slcdata.mask*slcarea).sum()
+                if aggregation_mode == 'mean':
+                    target[iY,iX] = (slcdata*slcarea).sum()/slcarea.sum()
+                elif aggregation_mode == 'quadrature': # for uncertainties
+                    target[iY,iX] = np.sqrt(((slcdata*slcarea)**2).sum())/slcarea.sum()
+                else: # assume mean if not quadrature
+                    target[iY,iX] = (slcdata*slcarea).sum()/slcarea.sum()
 
-                    # first pass, extract the fraction of pixel with valid data
-                    if temporal:
-                        fraction[0,iY,iX] = (~slcdata.mask*slcarea).sum()/(slcarea.sum())
-                    else:
-                        fraction[iY,iX] = (~slcdata.mask*slcarea).sum()/(slcarea.sum())
-                else:
-                    if temporal:
-                        target[0,iY,iX] = (slcdata*slcarea).sum()/slcarea.sum()
-                        fraction[0,iY,iX]=1.
-    			    else:
-                        target[iY,iX] = (slcdata*slcarea).sum()/slcarea.sum()
-                        fraction[iY,iX]=1.
 
     return target,fraction
 
