@@ -43,7 +43,7 @@ regridLAI
 --------------------------------------------------------------------------------
 """
 def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
-            variables=['LAI','LAI_ERR'], aggregation_mode = ['mean','quadrature'],
+            variables=['LAI','RMSE'], aggregation_mode = ['mean','quadrature'],
             projected=False, subset_label='?'):
     # First do a quick check to ensure we don't overwrite an existing file
     if len(glob.glob(path2dest)) > 0:
@@ -98,7 +98,7 @@ def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
     # regrid to new resolution
     regridded = {}
     for iv,varname in enumerate(variables):
-        print("Regridding variable %s ... " % (varname))
+        print("Regridding variable %s ...             " % (varname))
         # clip variable grid using lat_mask and lon_mask
         variable = ref.variables[varname].values
         var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
@@ -122,20 +122,19 @@ def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
 
     data_vars = {}
     for iv,varname in enumerate(list(regridded.keys())):
-        try:
+        if varname in ref.keys():
             var_attrs = ref[varname].attrs.copy()
             var_attrs['long_name'] += '; tiled at %.3f for %s subset' % (Xres,subset_label)
-            var_attrs['standard_name'] += ' for %s subset' % (Xres,subset_label)
+            var_attrs['standard_name'] += ' for %s subset' % subset_label
             data_vars[varname] = (['lat','lon'],regridded[varname],var_attrs.copy())
-        except:
-            if varname=='fraction':
+        elif varname=='fraction':
                 var_attrs = {}
-                var_attrs['long_name'] = 'Fraction of grid cell occupied by %s' % (subset_label)
-                var_attrs['standard_name'] = 'fraction %s' % (subset_label)
+                var_attrs['long_name'] = 'Fraction of grid cell occupied by %s' % subset_label
+                var_attrs['standard_name'] = 'fraction %s' % subset_label
                 var_attrs['grid_mapping'] = 'crs'
                 var_attrs['units'] = ''
                 data_vars[varname] = (['lat','lon'],regridded[varname],var_attrs.copy())
-            else:
+        else:
                 print('variable not found')
 
     regrid_ds = xr.Dataset(data_vars=data_vars,coords=coords)
