@@ -87,10 +87,22 @@ for ii,lc in enumerate(landcover):
         # clip variable grid using lat_mask and lon_mask
         mask = lc_ref.values==lc_id[ii]
         agb_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
-                                        areas, agb_ref.values, mask=mask,
-                                        aggregation_mode='mean')
+                                            areas, agb_ref.values, mask=mask,
+                                            aggregation_mode='mean')
         # write to file
         agb_out = xr.DataArray(data=agb_regrid, coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
                                 attrs={'details':'regridded AGB for %s, based on ESACCI-BIOMASS and CEH LCM2015' % lc,
                                         'name':'AGB for %s' % lc,
                                         'units':'Mg/ha'})
+        io.write_xarray_to_GeoTiff(agb_out,'%sESACCI_BIOMASS_uk5km_AGB_%s.tif' % (path2dest,lc))
+
+        # repeat for sd
+        sd_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+                                            areas, agb_sd_ref.values, mask=mask,
+                                            aggregation_mode='quadrature')
+        # write to file
+        sd_out = xr.DataArray(data=sd_regrid, coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
+                                attrs={'details':'regridded AGB-SD for %s, based on ESACCI-BIOMASS and CEH LCM2015' % lc,
+                                        'name':'AGB-SD for %s' % lc,
+                                        'units':'Mg/ha'})
+        io.write_xarray_to_GeoTiff(sd_out,'%sESACCI_BIOMASS_uk5km_AGB_SD_%s.tif' % (path2dest,lc))
