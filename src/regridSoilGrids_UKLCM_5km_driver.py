@@ -233,3 +233,32 @@ for sgvar in ['ocd']:
                                         'name':'Uncertainty in SOC %s' % lc,
                                         'units':'kg/m2'})
         unc_out.to_netcdf(path=nc_out)
+
+
+"""
+Additional loops to download global datasets at different resolutions
+"""
+"""
+resolutions = [0.5,0.125,0.05]
+for res in resolutions:
+    os.system('mkdir %s/global_%f_degree/' % (path2wgs84,res))
+    for sgvar in soilgrids_vars:
+        os.system('mkdir %s/global_%f_degree/%s/' % (path2wgs84,res,sgvar))
+        for layer in ['0-5','5-15','15-30','30-60','60-100','100-200']:
+            print('resolution: %f degree; variable: %s; soil layer %scm            ' % (res,sgvar,layer),end='\r')
+            ds = gdal.Warp('%s/global_%f_degree/%s/%s_%scm_mean.tif' % (path2wgs84,res,sgvar,sgvar,layer),
+                            '%s/%s/%s_%scm_mean.vrt' % (sg_url,sgvar,sgvar,layer),
+                            xRes=res, yRes=-res, dstSRS='EPSG:4326', srcSRS=igh,
+                            outputBounds = (-180,-90,180,90),
+                            outputBoundsSRS='EPSG:4326', resampleAlg='average')
+            del ds
+
+            if sgvar=='ocd':
+                for quantile in ['Q0.05','Q0.95']:
+                    ds = gdal.Warp('%s/global_%f_degree/%s/%s_%scm_%s.tif' % (path2wgs84,res,sgvar,sgvar,layer,quantile),
+                                    '%s/%s/%s_%scm_%s.vrt' % (sg_url,sgvar,sgvar,layer,quantile),
+                                    xRes=res, yRes=-res, dstSRS='EPSG:4326', srcSRS=igh,
+                                    outputBounds = (-180,-90,180,90),
+                                    outputBoundsSRS='EPSG:4326', resampleAlg='average')
+                    del ds
+"""
