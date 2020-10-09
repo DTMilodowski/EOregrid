@@ -167,11 +167,11 @@ for ii,sgvar in enumerate(soilgrids_vars):
         print('\t30-60cm')
         # weights average
         var = (var_030_060.values*0.30 + var_060_100.values*0.40)
-        # write to file
-        if sgvar == 'ocd':
-            var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
                                                 areas, var, mask=mask,
                                                 aggregation_mode='mean')
+        # write to file
+        if sgvar == 'ocd':
             nc_out = '%sSOC_030-100cm_mean_5km' % (path2dest)
             var_out = xr.DataArray(data=var_regrid, coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
                                     attrs={'details':'regridded SOC for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids Organic Carbon Density 250 m data' % lc,
@@ -179,9 +179,6 @@ for ii,sgvar in enumerate(soilgrids_vars):
                                     'units':'kg/m2'})
 
         elif sgvar in ['sand','silt','clay']:
-            var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
-                                                areas, var/0.7, mask=mask,
-                                                aggregation_mode='mean')
             nc_out = '%s%s_030-100cm_mean_5km' % (path2dest,sgvar)
             var_out = xr.DataArray(data=var_regrid, coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
                                     attrs={'details':'Percentage %s for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids 250 m data' % (sgvar, lc),
