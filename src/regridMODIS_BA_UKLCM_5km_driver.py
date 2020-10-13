@@ -94,19 +94,6 @@ lc_agg_file_MODIS = '/home/dmilodow/DataStore_DTM/DARE_UK/Data/lcm-2015-300m-wgs
 # MODIS Sinusoidalprojection WKT
 modis_wkt = "PROJCS[\"unnamed\",GEOGCS[\"Unknown datum based upon the custom spheroid\",DATUM[\"Not_specified_based_on_custom_spheroid\",SPHEROID[\"Custom spheroid\",6371007.181,0]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433]],PROJECTION[\"Sinusoidal\"],PARAMETER[\"longitude_of_center\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]]]"
 
-
-"PROJCS[\"unnamed\",
-        GEOGCS[\"Unknown datum based upon the custom spheroid\",
-                DATUM[\"Not_specified_based_on_custom_spheroid\",
-                        SPHEROID[\"Custom spheroid\",6371007.181,0]],
-                PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433]],
-        PROJECTION[\"Sinusoidal\"],
-        PARAMETER[\"longitude_of_center\",0],
-        PARAMETER[\"false_easting\",0],
-        PARAMETER[\"false_northing\",0],
-        UNIT[\"metre\",1,
-            AUTHORITY[\"EPSG\",\"9001\"]]]"
-
 # load tempate MODIS raster
 modis = xr.open_rasterio('%s/%s_BA_UK.tif' % (path2merged,modis_months[0])).sel(band=1)
 dy_modis = modis.y.values[1]-modis.y.values[0]
