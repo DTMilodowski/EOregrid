@@ -94,6 +94,19 @@ lc_agg_file_MODIS = '/home/dmilodow/DataStore_DTM/DARE_UK/Data/lcm-2015-300m-wgs
 # MODIS Sinusoidalprojection WKT
 modis_wkt = "PROJCS[\"unnamed\",GEOGCS[\"Unknown datum based upon the custom spheroid\",DATUM[\"Not_specified_based_on_custom_spheroid\",SPHEROID[\"Custom spheroid\",6371007.181,0]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433]],PROJECTION[\"Sinusoidal\"],PARAMETER[\"longitude_of_center\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]]]"
 
+
+"PROJCS[\"unnamed\",
+        GEOGCS[\"Unknown datum based upon the custom spheroid\",
+                DATUM[\"Not_specified_based_on_custom_spheroid\",
+                        SPHEROID[\"Custom spheroid\",6371007.181,0]],
+                PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433]],
+        PROJECTION[\"Sinusoidal\"],
+        PARAMETER[\"longitude_of_center\",0],
+        PARAMETER[\"false_easting\",0],
+        PARAMETER[\"false_northing\",0],
+        UNIT[\"metre\",1,
+            AUTHORITY[\"EPSG\",\"9001\"]]]"
+
 # load tempate MODIS raster
 modis = xr.open_rasterio('%s/%s_BA_UK.tif' % (path2merged,modis_months[0])).sel(band=1)
 dy_modis = modis.y.values[1]-modis.y.values[0]
@@ -129,6 +142,8 @@ for jj,month in enumerate(modis_doy):
         io.write_xarray_to_GeoTiff(BA_lc,sinusoidal_file,wkt=modis_wkt)
         # regrid to wgs84 template
         wgs84_file = '%s%s_BA_%s_5km.tif' % (path2dest_sub,modis_months[jj],lc)
-        os.system('gdalwarp -te %f %f %f %f -r average -s_srs %s -t_srs EPSG:4326 \
-            -tr %f %f -dstnodata -9999 -overwrite %s %s' %
-            (W, S, E, N, dx_target, dy_target, modis_wkt, sinusoidal_file, wgs84_file))
+        ds = gdal.Warp('%s' % wgs84_file,'%s' % sinusoidal_file,
+                srcSRS=modis_wkt, dstSRS='EPSG:4326',resampleAlg='average',
+                outputBounds=(W,S,E,N) , outputBoundsSRS='EPSG:4326',
+                xRes=dx_target, yRes=dy_target)
+        del ds
