@@ -112,7 +112,7 @@ def check_array_orientation(array,geoTrans,north_up=True):
 
     return array,geoTrans
 
-def write_xarray_to_GeoTiff(array, OUTFILE,north_up=True):
+def write_xarray_to_GeoTiff(array, OUTFILE,north_up=True,wkt=None):
     NBands = 1
     NRows,NCols = array.values.shape
 
@@ -135,6 +135,8 @@ def write_xarray_to_GeoTiff(array, OUTFILE,north_up=True):
         OUTFILE = OUTFILE+'.tif'
     dataset = driver.Create( OUTFILE, NCols, NRows, NBands, gdal.GDT_Float32 )
     dataset.SetGeoTransform( geoTrans )
+    if wkt is not None:
+        dataset.SetProjection(wkt)
     #srs = osr.SpatialReference()
     #srs.SetWellKnownGeogCS( 'EPSG:'+EPSG_CODE )
     #dataset.SetProjection( srs.ExportToWkt() )
