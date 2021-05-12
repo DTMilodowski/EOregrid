@@ -101,6 +101,10 @@ def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
         print("Regridding variable %s ...             " % (varname))
         # clip variable grid using lat_mask and lon_mask
         variable = ref.variables[varname].values
+        # check minimum LAIerror reported - must be at least 0.25m2/m2 or 0.5*LAI
+        if varname == 'RMSE':
+            variable[variable==0] = 0.5*ref.variables['LAI'].values[variable==0]
+            variable[variable<0.25] = 0.25
         var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
                                         areas, variable, mask=mask,
                                         aggregation_mode=aggregation_mode[iv])
