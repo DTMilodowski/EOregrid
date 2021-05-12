@@ -32,7 +32,7 @@ dy_target = 0.05
 # Set up directory structure as required
 path2orig = '/home/dmilodow/DataStore_GCEL/BurnedArea/MCD64A1/rawHDF/'
 path2merged = '%s/merged_files/' % path2orig
-path2dest = '/disk/scratch/local.2/copernicus/MODIS_BurnedArea_2014_2018_UK_tiles/'
+path2dest = '/disk/scratch/local.2/MCD64A1.006/MODIS_BurnedArea_2001_2019_UK_tiles/'
 try:
     os.mkdir(path2dest)
     print('path2dest not found, creating new directory %s' % path2dest)
@@ -46,6 +46,7 @@ for lc in landcover:
     path2dest_sub = '%s%s/' % (path2dest, lc)
     try:
         os.mkdir(path2dest_sub)
+        os.mkdir('%s/temp' % path2dest_sub)
         print('subdirectory not found, creating new directory %s' % path2dest_sub)
     except:
         print('subdirectory is %s' % path2dest_sub)
@@ -63,11 +64,14 @@ for tile in glob.glob('%s/*hdf' % path2orig):
 
 modis_unique = np.unique(modis_temp)
 
+modis_years = []
 modis_months = []
 modis_doy = []
 for date in modis_unique:
     year = date[:4]
     doy = date[4:]
+    if year not in modis_years:
+        modis_years.append(year)
     modis_doy.append('MCD64A1.A%s%s' % (year,doy))
     try:
         modis_months.append('MCD64A1.A%s%s' % (year,doy_1_to_month[doy]))
@@ -128,9 +132,51 @@ for jj,month in enumerate(modis_doy):
         sinusoidal_file = '%s%s_BA_UK_500m_sinusoidal_%s.tif' % (path2merged,modis_months[jj],lc)
         io.write_xarray_to_GeoTiff(BA_lc,sinusoidal_file,wkt=modis_wkt)
         # regrid to wgs84 template
-        wgs84_file = '%s%s_BA_%s_5km.tif' % (path2dest_sub,modis_months[jj],lc)
+        wgs84_file = '%s/temp/%s_BA_%s_5km.tif' % (path2dest_sub,modis_months[jj],lc)
         ds = gdal.Warp('%s' % wgs84_file,'%s' % sinusoidal_file,
                 srcSRS=modis_wkt, dstSRS='EPSG:4326',resampleAlg='average',
                 outputBounds=(W,S,E,N) , outputBoundsSRS='EPSG:4326',
                 xRes=dx_target, yRes=dy_target)
+        del ds
+
+# Now aggregate monthly files into annual for ease of integration into CARDAMOM
+# workflows.
+print('Aggregating monthly files into annual netcdf')
+for year in modis_years:
+    for lc in landcover:
+        print('%s; %s' % (year, lc))
+        path2dest_sub = '%s%s/' % (path2dest, lc)
+        monthly_geotiffs = glob.glob('%s/temp/MCD64A1.A%s??_BA_%s_5km.tif' % (path2dest_sub,year,lc))
+        ref = xr.open_rasterio(monthly_geotiffs[0])
+        # Coordinate grid
+        Y = ref.coords['y'].values
+        X = ref.coords['x'].values
+        # get resolution
+        Yres = np.abs(Y[1]-Y[0])
+        Xres = np.abs(X[1]-X[0])
+
+        coords = {'time': (['time'],np.arange(1,13),{'units':'months','long_name':'month of year'}),
+                'latitude': (['latitude'],Y,{'units':'degrees_north','long_name':'latitude'}),
+                'longitude': (['longitude'],X,{'units':'degrees_east','long_name':'longitude'})}
+
+        attrs = {}
+        attrs['history'] = 'MODIS MCD64A1 burned area product; subsetted and regridded as pixel fraction burned per month'
+        attrs['long_name'] = 'MODIS MCD64A1 burned area product, tiled at %.3f for %s subset' % (Xres,lc)
+        attrs['standard_name'] = 'BurnedFraction_%s' % lc
+        attrs['units'] = ''
+
+        BA_annual = np.zeros((12,Y.size,X.size))*np.nan
+        for mm in np.arange(0,12):
+            month = str(mm+1).zfill(2)
+            BA_file = '%s/temp/MCD64A1.A%s%s_BA_%s_5km.tif' % (path2dest_sub,year,month,lc)
+            try:
+                BA_month = xr.open_rasterio(BA_file).sel(band=1)
+                BA_month.values[BA_month.values<0] = np.nan
+                BA_annual[mm] = BA_month.values.copy()
+            except:
+                print('No BA data for %s/%s' % (month,year))
+        data_vars = {'BurnedFraction' : (['time','lat','lon'],BA_annual[:,::-1,:],attrs.copy())}
+
+        ds = xr.Dataset(data_vars=data_vars,coords=coords)
+        ds.to_netcdf(path='%s/%s/MCD4A1_%s_%s.nc' % (path2dest,lc,year,lc))
         del ds

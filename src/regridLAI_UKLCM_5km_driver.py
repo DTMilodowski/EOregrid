@@ -26,7 +26,8 @@ This program will use
 
 # Set up directory structure as required
 path2orig = glob.glob('/disk/scratch/local.2/copernicus/LAI_300m_2014-2018/*')
-path2dest = '/disk/scratch/local.2/copernicus/LAI_300m_2014_2018_UK_tiles/'
+path2orig += glob.glob('/disk/scratch/local.2/copernicus/LAI_300m_2019-2020/ftp.copernicus.vgt.vito.be/M0083177/LAI300_2*PROBAV*')
+path2dest = '/disk/scratch/local.2/copernicus/LAI_300m_2014_2020_UK_tiles/'
 try:
     os.mkdir(path2dest)
     print('path2dest not found, creating new directory %s' % path2dest)

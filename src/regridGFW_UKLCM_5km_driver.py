@@ -5,15 +5,10 @@ regrid tree cover loss to 5km based on land-cover subsets defined by CEH LCM2015
 
 """
 import os
-import sys
 import numpy as np
 import xarray as xr
-import matplotlib.pyplot as plt
-
 import geospatial_tools as gst
 
-sys.path.append('./data_io/')
-import data_io as io
 """
 PART A: LOAD IN THE REQUIRED DATA
 This program will use
@@ -30,9 +25,16 @@ try:
 except:
     print('path2dest is %s' % path2dest)
 
-
 landcover = ['broadleaf_forest', 'coniferous_forest', 'arable', 'improved_grass',
             'seminatural_grass', 'heath']
+
+for lc in landcover:
+    path2dest_sub = '%s%s/' % (path2dest, lc)
+    try:
+        os.mkdir(path2dest_sub)
+        print('subdirectory not found, creating new directory %s' % path2dest_sub)
+    except:
+        print('subdirectory is %s' % path2dest_sub)
 
 W = -10.5
 E = 2.25
@@ -89,9 +91,11 @@ for year in np.arange(2001,2020):
                                         areas, var, mask=mask, aggregation_mode='mean')
 
         # write to file
-        nc_out = '%stree_cover_loss_fraction_%i_%s_5km' % (path2dest, year, lc)
+        path2dest_sub = '%s%s/' % (path2dest, lc)
+        nc_out = '%stree_cover_loss_fraction_%i_%s_5km.nc' % (path2dest_sub, year, lc)
         var_out = xr.DataArray(data=var_regrid, coords={'x':Xdest, 'y':Ydest},
                                     dims=['y', 'x'],
                                     attrs={'details':'regridded GFW tree cover loss for %s, based on GFW v1.7 and CEH LCM2015' % lc,
                                     'name':'tree cover loss fraction for %s' % lc,
                                     'units':'fraction (of land cover within pixel)'})
+        var_out.to_netcdf(path=nc_out)
