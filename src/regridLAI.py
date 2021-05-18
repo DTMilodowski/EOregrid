@@ -116,14 +116,11 @@ def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
     if projected:
         coords = {Yvar: ([Yvar],Ydest,{'units':'m','long_name':'y coordinate'}),
                 Xvar: ([Xvar],Xdest,{'units':'m','long_name':'x coordinate'})}
+        var_dims = [Yvar,Xvar]
     else:
-        coords = {Yvar: ([Yvar],Ydest,{'units':'degrees_north','long_name':'latitude'}),
-                Xvar: ([Xvar],Xdest,{'units':'degrees_east','long_name':'longitude'})}
-
-    attrs = ref.attrs.copy()
-    attrs['title'] += '; tiled at %.3f for %s subset' % (Xres,subset_label)
-    attrs['history'] += '; subsetted and regridded'
-
+        coords = {'latitude': (['latitude'],Ydest,{'units':'degrees_north','long_name':'latitude'}),
+                'longitude': (['longitude'],Xdest,{'units':'degrees_east','long_name':'longitude'})}
+        var_dims = ['latitude','longitude']
     data_vars = {}
     for iv,varname in enumerate(list(regridded.keys())):
         var_attrs = {}
@@ -136,7 +133,7 @@ def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
             var_attrs['standard_name'] = '%s_%s' % (ref[varname].attrs['standard_name'],subset_label)
             var_attrs['units'] = ''
 
-        data_vars[varname] = (['lat','lon'],regridded[varname],var_attrs.copy())
+        data_vars[varname] = (['latitude','longitude'],regridded[varname],var_attrs.copy())
 
     regrid_ds = xr.Dataset(data_vars=data_vars,coords=coords)
     regrid_ds.to_netcdf(path=path2dest)

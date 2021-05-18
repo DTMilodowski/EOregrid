@@ -26,7 +26,7 @@ except:
     print('path2dest is %s' % path2dest)
 
 landcover = ['broadleaf_forest', 'coniferous_forest', 'arable', 'improved_grass',
-            'seminatural_grass', 'heath']
+            'seminatural_grass', 'heath', 'built_up', 'non_forest']
 
 for lc in landcover:
     path2dest_sub = '%s%s/' % (path2dest, lc)
@@ -58,7 +58,7 @@ os.system('gdalwarp -te %f %f %f %f -r near -s_srs EPSG:27700 -t_srs EPSG:4326 \
             -tr %f %f -dstnodata 0 -overwrite %s %s' %
             (W, S, E, N, dx_orig, dy_orig, lc_agg_file_25m, lc_agg_file_GFW))
 lc_gfw = xr.open_rasterio(lc_agg_file_GFW).sel(band=1)
-lc_id = [1,2,3,4,5,6]
+lc_id = [1,2,3,4,5,6,10,'_']
 
 # set up target grid
 dx_target = 0.05
@@ -85,7 +85,10 @@ for year in np.arange(2001,2020):
     for ii,lc in enumerate(landcover):
         print("Regridding tree cover loss in %i for %s...             " % (year,lc))
         # clip variable grid using lat_mask and lon_mask
-        mask = lc_gfw.values==lc_id[ii]
+        if lc == 'non_forest':
+            mask = lc_ref.values>2.5
+        else:
+            mask = lc_ref.values==lc_id[ii]
         # weights average
         var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
                                         areas, var, mask=mask, aggregation_mode='mean')
@@ -93,8 +96,8 @@ for year in np.arange(2001,2020):
         # write to file
         path2dest_sub = '%s%s/' % (path2dest, lc)
         nc_out = '%stree_cover_loss_fraction_%i_%s_5km.nc' % (path2dest_sub, year, lc)
-        var_out = xr.DataArray(data=var_regrid, coords={'x':Xdest, 'y':Ydest},
-                                    dims=['y', 'x'],
+        var_out = xr.DataArray(data={'tree_cover_loss' : var_regrid}, coords={'longitude':Xdest, 'latitude':Ydest},
+                                    dims=['latitude', 'longitude'],
                                     attrs={'details':'regridded GFW tree cover loss for %s, based on GFW v1.7 and CEH LCM2015' % lc,
                                     'name':'tree cover loss fraction for %s' % lc,
                                     'units':'fraction (of land cover within pixel)'})

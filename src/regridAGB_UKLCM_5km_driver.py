@@ -29,7 +29,7 @@ except:
     print('path2dest is %s' % path2dest)
 
 landcover = ['broadleaf_forest', 'coniferous_forest', 'arable', 'improved_grass',
-            'seminatural_grass', 'heath']
+            'seminatural_grass', 'heath', 'built_up', 'non_forest']
 for lc in landcover:
     path2dest_sub = '%s%s/' % (path2dest, lc)
     try:
@@ -66,7 +66,7 @@ for year in years:
 
     # load in the new raster
     lc_ref = xr.open_rasterio(lc_agg_file_BIOMASS)[0]
-    lc_id = [1,2,3,4,5,6]
+    lc_id = [1,2,3,4,5,6,10,'_']
     dx_target = 0.05
     dy_target = 0.05
 
@@ -94,14 +94,17 @@ for year in years:
     for ii,lc in enumerate(landcover):
         print("Regridding variable AGB for %s...             " % lc)
         # clip variable grid using lat_mask and lon_mask
-        mask = lc_ref.values==lc_id[ii]
+        if lc == 'non_forest':
+            mask = lc_ref.values>2.5
+        else:
+            mask = lc_ref.values==lc_id[ii]
         agb_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
                                             areas, agb_ref.values, mask=mask,
                                             aggregation_mode='mean')
         # repeat for sd
         sd_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
                                             areas, agb_sd_ref.values, mask=mask,
-                                            aggregation_mode='quadrature')
+                                            aggregation_mode='mean')
 
         # set up attributes
         attrs = agb.attrs.copy()
@@ -111,10 +114,10 @@ for year in years:
         data_vars = {}
         agb_attrs = {'long_name' : 'Aboveground Biomass (MgC / ha) for %s in %i; tiled at %.3f' % (lc,year,dx_target),
                     'standard_name' : 'AGBiomass', 'units' : 'MgC ha-1'}
-        data_vars['AGBiomass'] = (['lat','lon'],agb_regrid[::-1,:],agb_attrs.copy())
+        data_vars['AGBiomass'] = (['latitude','longitude'],agb_regrid,agb_attrs.copy())
         unc_attrs = {'long_name' : 'Uncertainty in Aboveground Biomass (MgC / ha) for %s in %i; tiled at %.3f' % (lc,year,dx_target),
                     'standard_name' : 'AGBiomass_Uncertainty', 'units' : 'MgC ha-1'}
-        data_vars['AGBiomass_Uncertainty'] = (['lat','lon'],sd_regrid[::-1,:],unc_attrs.copy())
+        data_vars['AGBiomass_Uncertainty'] = (['latitude','longitude'],sd_regrid,unc_attrs.copy())
 
         # write to file
         agb_ds = xr.Dataset(data_vars=data_vars,coords=coords)

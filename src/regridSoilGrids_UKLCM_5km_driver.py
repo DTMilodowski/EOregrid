@@ -34,7 +34,8 @@ try:
 except:
     print('path2dest is %s' % path2dest)
 
-landcover = ['broadleaf_forest', 'coniferous_forest', 'arable', 'improved_grass', 'seminatural_grass', 'heath']
+landcover = ['broadleaf_forest', 'coniferous_forest', 'arable', 'improved_grass',
+            'seminatural_grass', 'heath', 'built_up', 'non_forest']
 soilgrids_vars = ['sand','silt','clay','ocd']
 
 for lc in landcover:
@@ -63,7 +64,7 @@ lc_25m_agg = xr.open_rasterio(lc_agg_file_25m).sel(band=1)
 # - thus, first step will be to regrid to WGS84 for consistency with the other
 #   datasets. Will use gdalwarp and the "average" mode
 # - native units for soilgrids variables are:
-#       - ocd: organic carbon density: hg/dm3. Multiply by 100 -> kg/m3
+#       - ocd: organic carbon density: hg/dm3. Divide by 100 -> kg/m3
 #       - sand/silt/clay: g/kg of fines. Divide by 10 -> %
 
 # download and regrid to wgs84
@@ -100,11 +101,11 @@ for ii,sgvar in enumerate(soilgrids_vars):
     var_060_100.values[var_060_100.values<0]=np.nan
 
     if sgvar == 'ocd':
-        var_000_005.values*=(100.)
-        var_005_015.values*=(100.)
-        var_015_030.values*=(100.)
-        var_030_060.values*=(100.)
-        var_060_100.values*=(100.)
+        var_000_005.values*=(10.**-4)
+        var_005_015.values*=(10.**-4)
+        var_015_030.values*=(10.**-4)
+        var_030_060.values*=(10.**-4)
+        var_060_100.values*=(10.**-4)
 
     else:
         var_000_005.values*=(0.1)
@@ -124,7 +125,7 @@ for ii,sgvar in enumerate(soilgrids_vars):
 
         # load in the new raster
         lc_ref = xr.open_rasterio(lc_agg_file_soilgrids)[0]
-        lc_id = [1,2,3,4,5,6]
+        lc_id = [1,2,3,4,5,6,10,'_']
         dx_target = 0.05
         dy_target = 0.05
 
@@ -143,11 +144,15 @@ for ii,sgvar in enumerate(soilgrids_vars):
         # calculate grid cell area
         areas = gst.calculate_cell_areas(Yorig,Xorig,projected=False)
 
+    coords={'longitude':Xdest,'latitude':Ydest}
     for ii,lc in enumerate(landcover):
         print("Regridding %s for %s...             " % (sgvar,lc))
         path2dest_sub = '%s%s/' % (path2dest, lc)
         # clip variable grid using lat_mask and lon_mask
-        mask = lc_ref.values==lc_id[ii]
+        if lc == 'non_forest':
+            mask = lc_ref.values>2.5
+        else:
+            mask = lc_ref.values==lc_id[ii]
         print('\t0-30cm')
         # weights average
         var = (var_000_005.values*0.05 + var_005_015.values*0.10 +
@@ -157,19 +162,22 @@ for ii,sgvar in enumerate(soilgrids_vars):
         # write to file
         if sgvar == 'ocd':
             nc_out = '%sSOC_000-030cm_mean_%s_5km.nc' % (path2dest_sub,lc)
-            var_out = xr.DataArray(data=var_regrid*1000., coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
-                                    attrs={'details':'regridded SOC for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids Organic Carbon Density 250 m data' % lc,
-                                    'name':'SOC stock for %s' % lc,
-                                    'units':'g/m2'})
+            attrs={'details':'regridded SOC for %s for soil depths of 0-30cm, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids Organic Carbon Density 250 m data' % lc,
+                    'name':'SOC stock for %s' % lc,
+                    'units':'g/m2'}
+            data_vars = {'SOC':(['latitude','longitude'],var_regrid*1000.,attrs)}
+            var_out = xr.Dataset(data_vars=data_vars,coords=coords)
         elif sgvar in ['sand','silt','clay']:
             nc_out = '%s%s_000-030cm_mean_%s_5km.nc' % (path2dest_sub,sgvar,lc)
-            var_out = xr.DataArray(data=var_regrid, coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
-                                    attrs={'details':'Percentage %s for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids 250 m data' % (sgvar, lc),
-                                    'name':'Percentage %s for %s' % (sgvar, lc),
-                                    'units':'%'})
+            attrs={'details':'Percentage %s for %s for soil depths of 0-30cm, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids 250 m data' % (sgvar, lc),
+                    'name':'Percentage %s for %s' % (sgvar, lc),
+                    'units':'%'}
+            data_vars = {'%s' % sgvar : (['latitude','longitude'],var_regrid,attrs)}
+            var_out = xr.Dataset(data_vars=data_vars, coords=coords)
+
         var_out.to_netcdf(path=nc_out)
 
-        print('\t30-60cm')
+        print('\t30-100cm')
         # weights average
         var = (var_030_060.values*0.30 + var_060_100.values*0.40)
         var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
@@ -177,18 +185,21 @@ for ii,sgvar in enumerate(soilgrids_vars):
                                                 aggregation_mode='mean')
         # write to file
         if sgvar == 'ocd':
+            attrs={'details':'regridded SOC for %s for soil depths of 30-100cm, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids Organic Carbon Density 250 m data' % lc,
+                    'name':'SOC stock for %s' % lc,
+                    'units':'g/m2'}
             nc_out = '%sSOC_030-100cm_mean_%s_5km.nc' % (path2dest_sub,lc)
-            var_out = xr.DataArray(data=var_regrid*1000., coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
-                                    attrs={'details':'regridded SOC for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids Organic Carbon Density 250 m data' % lc,
-                                    'name':'SOC stock for %s' % lc,
-                                    'units':'g/m2'})
+            data_vars = {'SOC':(['latitude','longitude'],var_regrid*1000.,attrs)}
+            var_out = xr.Dataset(data_vars=data_vars,coords=coords)
 
         elif sgvar in ['sand','silt','clay']:
             nc_out = '%s%s_030-100cm_mean_%s_5km.nc' % (path2dest_sub,sgvar,lc)
-            var_out = xr.DataArray(data=var_regrid, coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
-                                    attrs={'details':'Percentage %s for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids 250 m data' % (sgvar, lc),
-                                    'name':'Percentage %s for %s' % (sgvar, lc),
-                                    'units':'%'})
+            attrs={'details':'Percentage %s for %s for soil depths of 30-100cm, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids 250 m data' % (sgvar, lc),
+                    'name':'Percentage %s for %s' % (sgvar, lc),
+                    'units':'%'}
+            data_vars = {'%s' % sgvar : (['latitude','longitude'],var_regrid,attrs)}
+            var_out = xr.Dataset(data_vars=data_vars, coords=coords)
+
         var_out.to_netcdf(path=nc_out)
 
 # Now do uncertainty in ocd
@@ -221,34 +232,47 @@ for sgvar in ['ocd']:
     for ii,lc in enumerate(landcover):
         print("Regridding uncertainty in %s for %s...             " % (sgvar,lc))
         path2dest_sub = '%s%s/' % (path2dest, lc)
+        if lc == 'non_forest':
+            mask = lc_ref.values>2.5
+        else:
+            mask = lc_ref.values==lc_id[ii]
 
-        unc = ((Q0_95_000_005.values*100.*0.05 + Q0_95_005_015.values*100.*0.15 +
-                Q0_95_015_030.values*100.*0.15) -
-                (Q0_05_000_005.values*100.*0.05 + Q0_05_005_015.values*100.*0.15 +
-                Q0_05_015_030.values*100.*0.15))/2.
+        unc = ((Q0_95_000_005.values*0.05 + Q0_95_005_015.values*0.15 +
+                Q0_95_015_030.values*0.15) -
+                (Q0_05_000_005.values*0.05 + Q0_05_005_015.values*0.15 +
+                Q0_05_015_030.values*0.15))/2.
+
+        if sgvar == 'ocd':
+            unc*=10.**-4
 
         unc_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
                                                 areas, unc, mask=mask, aggregation_mode='mean')
 
         nc_out = '%sSOC_000-030cm_uncertainty_%s_5km.nc' % (path2dest_sub,lc)
-        unc_out = xr.DataArray(data=unc_regrid*1000., coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
-                                attrs={'details':'half-width of the 5th-95th interquantile range, regridded OCD uncertatinty for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids 250 m data' % lc,
-                                        'name':'Uncertainty in SOC %s' % lc,
-                                        'units':'g/m2'})
+        attrs={'details':'half-width of the 5th-95th interquantile range, regridded OCD uncertatinty for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids 250 m data' % lc,
+                'name':'Uncertainty in SOC %s' % lc,
+                'units':'g/m2'}
+        data_vars = {'SOC_uncertainty' : (['latitude','longitude'], unc_regrid*1000., attrs)}
+        unc_out = xr.Dataset(data_vars=data_vars, coords=coords)
         unc_out.to_netcdf(path=nc_out)
 
-        unc = ((Q0_95_030_060.values*100.*0.3 + Q0_95_060_100.values*100.*0.4) -
-                (Q0_05_030_060.values*100.*0.3 + Q0_05_060_100.values*100.*0.4))/2.
+        unc = ((Q0_95_030_060.values*0.3 + Q0_95_060_100.values*0.4) -
+                (Q0_05_030_060.values*0.3 + Q0_05_060_100.values*0.4))/2.
+
+        if sgvar == 'ocd':
+            unc*=10.**-4
 
         unc_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
                                                 areas, unc, mask=mask, aggregation_mode='mean')
 
         nc_out = '%sSOC_030-100cm_uncertainty_%s_5km.nc' % (path2dest_sub,lc)
-        unc_out = xr.DataArray(data=unc_regrid*1000., coords={'x':Xdest,'y':Ydest}, dims=['y','x'],
-                                attrs={'details':'half-width of the 5th-95th interquantile range, regridded OCD uncertatinty for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids 250 m data' % lc,
-                                        'name':'Uncertainty in SOC %s' % lc,
-                                        'units':'g/m2'})
+        attrs={'details':'half-width of the 5th-95th interquantile range, regridded OCD uncertatinty for %s, based on SoilGrids2 and CEH LCM2015, aggregated from SoilGrids 250 m data' % lc,
+                'name':'Uncertainty in SOC %s' % lc,
+                'units':'g/m2'}
+        data_vars = {'SOC_uncertainty' : (['latitude','longitude'], unc_regrid*1000., attrs)}
+        unc_out = xr.Dataset(data_vars=data_vars, coords=coords)
         unc_out.to_netcdf(path=nc_out)
+
 """
 Additional loops to download global datasets at different resolutions
 """

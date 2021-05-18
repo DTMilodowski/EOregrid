@@ -40,7 +40,7 @@ except:
     print('path2dest is %s' % path2dest)
 
 landcover = ['broadleaf_forest', 'coniferous_forest', 'arable', 'improved_grass',
-            'seminatural_grass', 'heath']
+            'seminatural_grass', 'heath', 'built_up', 'non_forest']
 
 for lc in landcover:
     path2dest_sub = '%s%s/' % (path2dest, lc)
@@ -113,8 +113,8 @@ ds = gdal.Warp('%s' % (lc_agg_file_MODIS),'%s' % (lc_agg_file_25m),
                 xRes=dx_modis, yRes=dy_modis)
 del ds
 
-lc_modis = xr.open_rasterio(lc_agg_file_MODIS).sel(band=1)[:-1]
-lc_id = [1,2,3,4,5,6]
+lc_ref = xr.open_rasterio(lc_agg_file_MODIS).sel(band=1)[:-1]
+lc_id = [1,2,3,4,5,6,10,'_']
 
 # regridding BA with tiling approach
 for jj,month in enumerate(modis_doy):
@@ -122,11 +122,14 @@ for jj,month in enumerate(modis_doy):
     for ii,lc in enumerate(landcover):
         path2dest_sub = '%s%s/' % (path2dest, lc)
         print('processing layer %i of %i, for %s' % (jj+1,len(modis_doy),lc))
-
+        if lc == 'non_forest':
+            mask = lc_ref.values>2.5
+        else:
+            mask = lc_ref.values==lc_id[ii]
         BA_lc = BA.copy(deep=True)
         BA_lc.values=np.zeros(BA.values.shape,dtype='float')
         BA_lc.values[BA.values>0]=1.
-        BA_lc.values[lc_modis.values!=lc_id[ii]]=np.nan # ignore areas outside land cover
+        BA_lc.values[mask]=np.nan # ignore areas outside land cover
 
         # write to temporary array
         sinusoidal_file = '%s%s_BA_UK_500m_sinusoidal_%s.tif' % (path2merged,modis_months[jj],lc)
@@ -175,7 +178,7 @@ for year in modis_years:
                 BA_annual[mm] = BA_month.values.copy()
             except:
                 print('No BA data for %s/%s' % (month,year))
-        data_vars = {'BurnedFraction' : (['time','lat','lon'],BA_annual[:,::-1,:],attrs.copy())}
+        data_vars = {'BurnedFraction' : (['time','latitude','longitude'],BA_annual,attrs.copy())}
 
         ds = xr.Dataset(data_vars=data_vars,coords=coords)
         ds.to_netcdf(path='%s/%s/MCD4A1_%s_%s.nc' % (path2dest,lc,year,lc))
