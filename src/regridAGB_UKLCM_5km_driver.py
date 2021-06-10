@@ -17,7 +17,12 @@ This program will use
 - ESA BIOMASS-CCI AGB AND SD
 - CEH 2015 UK land cover map
 """
-
+dx_target = 0.05
+dy_target = 0.05
+N = 61.25
+S = 49.75
+E = 2.25
+W = -10.5
 # Set up directory structure as required
 path2agb = '/home/dmilodow/DataStore_DTM/DARE_UK/EOregrid/data/ESACCI_BIOMASS_vrt/'
 path2dest =  '/exports/csce/datastore/geos/groups/gcel/AGB/ESA_CCI_BIOMASS/UKLCM_5km/'
@@ -53,22 +58,18 @@ for year in years:
     # regrid aggregated LCM
     dy_orig = agb.y.values[1]-agb.y.values[0]
     dx_orig = agb.x.values[1]-agb.x.values[0]
-    UKlat = agb.y.values[(agb.y.values>49.75)*(agb.y.values<61.25)]
-    UKlon = agb.x.values[(agb.x.values>-10.5)*(agb.x.values<2.25)]
-    W = UKlon[0]-dx_orig/2.
-    E = UKlon[-1]+dx_orig/2.
-    N = UKlat[0]-dy_orig/2.
-    S = UKlat[-1]+dy_orig/2.
+
+    W_ = W-dx_orig/2.; E_ = E+dx_orig/2.
+    N_ = N-dy_orig/2.; S_ = S+dy_orig/2.
     if year == 2010:
         os.system('gdalwarp -r mode -s_srs EPSG:27700 -t_srs EPSG:4326 \
                 -te %f %f %f %f -tr %f %f -dstnodata 0 -overwrite %s %s' %
-                (W, S, E, N, dx_orig, dy_orig, lc_agg_file_25m,lc_agg_file_BIOMASS))
+                (W_, S_, E_, N_, dx_orig, dy_orig, lc_agg_file_25m,lc_agg_file_BIOMASS))
 
     # load in the new raster
     lc_ref = xr.open_rasterio(lc_agg_file_BIOMASS)[0]
     lc_id = [1,2,3,4,5,6,10,'_']
-    dx_target = 0.05
-    dy_target = 0.05
+
 
     agb_ref=agb.sel(x=slice(W,E),y=slice(N,S))
     agb_sd_ref=agb_sd.sel(x=slice(W,E),y=slice(N,S))
@@ -76,10 +77,6 @@ for year in years:
     # Reset grid
     Yorig = agb_ref.y.values
     Xorig = agb_ref.x.values
-
-    # define scanning window size
-    Ysize = np.abs(np.round(dy_target/dy_orig).astype('i'))
-    Xsize = np.abs(np.round(dx_target/dx_orig).astype('i'))
 
     # define destination lat / lon arrays
     Ydest = np.arange(N-dy_target/2.,S,-dy_target)
@@ -98,11 +95,11 @@ for year in years:
             mask = lc_ref.values>2.5
         else:
             mask = lc_ref.values==lc_id[ii]
-        agb_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+        agb_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest,
                                             areas, agb_ref.values, mask=mask,
                                             aggregation_mode='mean')
         # repeat for sd
-        sd_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+        sd_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, 
                                             areas, agb_sd_ref.values, mask=mask,
                                             aggregation_mode='mean')
 
@@ -112,11 +109,11 @@ for year in years:
         attrs['history'] = 'ESACCI Aboveground Biomass data for %i; subsetted for %s based on the UKLCM2015 land cover map, and regridded to %.3f degrees for ingestion into stratified CARDAMOM simulations for the UK C cycle' % (year,lc,dx_target)
 
         data_vars = {}
-        agb_attrs = {'long_name' : 'Aboveground Biomass (MgC / ha) for %s in %i; tiled at %.3f' % (lc,year,dx_target),
-                    'standard_name' : 'AGBiomass', 'units' : 'MgC ha-1'}
+        agb_attrs = {'long_name' : 'Aboveground Biomass (Mg / ha) for %s in %i; tiled at %.3f' % (lc,year,dx_target),
+                    'standard_name' : 'AGBiomass', 'units' : 'Mg ha-1'}
         data_vars['AGBiomass'] = (['latitude','longitude'],agb_regrid,agb_attrs.copy())
-        unc_attrs = {'long_name' : 'Uncertainty in Aboveground Biomass (MgC / ha) for %s in %i; tiled at %.3f' % (lc,year,dx_target),
-                    'standard_name' : 'AGBiomass_Uncertainty', 'units' : 'MgC ha-1'}
+        unc_attrs = {'long_name' : 'Uncertainty in Aboveground Biomass (Mg / ha) for %s in %i; tiled at %.3f' % (lc,year,dx_target),
+                    'standard_name' : 'AGBiomass_Uncertainty', 'units' : 'Mg ha-1'}
         data_vars['AGBiomass_Uncertainty'] = (['latitude','longitude'],sd_regrid,unc_attrs.copy())
 
         # write to file

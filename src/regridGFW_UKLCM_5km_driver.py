@@ -57,7 +57,7 @@ lc_agg_file_GFW = '/home/dmilodow/DataStore_DTM/DARE_UK/Data/lcm-2015-300m-wgs84
 os.system('gdalwarp -te %f %f %f %f -r near -s_srs EPSG:27700 -t_srs EPSG:4326 \
             -tr %f %f -dstnodata 0 -overwrite %s %s' %
             (W, S, E, N, dx_orig, dy_orig, lc_agg_file_25m, lc_agg_file_GFW))
-lc_gfw = xr.open_rasterio(lc_agg_file_GFW).sel(band=1)
+lc_ref = xr.open_rasterio(lc_agg_file_GFW).sel(band=1)
 lc_id = [1,2,3,4,5,6,10,'_']
 
 # set up target grid
@@ -68,16 +68,13 @@ dy_target = 0.05
 Yorig = gfw.y.values
 Xorig = gfw.x.values
 
-# define scanning window size
-Ysize = np.abs(np.round(dy_target/dy_orig).astype('i'))
-Xsize = np.abs(np.round(dx_target/dx_orig).astype('i'))
-
 # define destination lat / lon arrays
 Ydest = np.arange(N-dy_target/2.,S,-dy_target)
 Xdest = np.arange(W+dx_target/2.,E,dx_target)
 
 # calculate grid cell area
 areas = gst.calculate_cell_areas(Yorig,Xorig,projected=False)
+coords={'longitude':Xdest,'latitude':Ydest}
 
 for year in np.arange(2001,2020):
     gfw_code = year-2000
@@ -90,15 +87,14 @@ for year in np.arange(2001,2020):
         else:
             mask = lc_ref.values==lc_id[ii]
         # weights average
-        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest,
                                         areas, var, mask=mask, aggregation_mode='mean')
 
         # write to file
         path2dest_sub = '%s%s/' % (path2dest, lc)
         nc_out = '%stree_cover_loss_fraction_%i_%s_5km.nc' % (path2dest_sub, year, lc)
-        var_out = xr.DataArray(data={'tree_cover_loss' : var_regrid}, coords={'longitude':Xdest, 'latitude':Ydest},
-                                    dims=['latitude', 'longitude'],
-                                    attrs={'details':'regridded GFW tree cover loss for %s, based on GFW v1.7 and CEH LCM2015' % lc,
-                                    'name':'tree cover loss fraction for %s' % lc,
-                                    'units':'fraction (of land cover within pixel)'})
-        var_out.to_netcdf(path=nc_out)
+        attrs={'details':'regridded GFW tree cover loss for %s, based on GFW v1.7 and CEH LCM2015' % lc,
+                'name':'tree cover loss fraction for %s' % lc,
+                'units':'fraction (of land cover within pixel)'}
+        data_vars = {'tree_cover_loss' : (['latitude','longitude'], var_regrid, attrs)}
+        var_out = xr.Dataset(data_vars=data_vars, coords=coords)

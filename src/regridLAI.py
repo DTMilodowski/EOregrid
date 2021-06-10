@@ -63,7 +63,6 @@ def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
     # get resolution
     Yorig_res = np.abs(ref[Yvar].values[1]-ref[Yvar].values[0])
     Xorig_res = np.abs(ref[Xvar].values[1]-ref[Xvar].values[0])
-
     if extent is not None:
         N,S,E,W = extent[:]
         if 'lat' in dim_names and 'lon' in dim_names:
@@ -81,31 +80,25 @@ def regridLAI(path2orig, path2dest, Xres, Yres, mask=None, extent=None,
             return 3
 
     # Reset grid
-    Yorig = ref.coords[Yvar].values
+    Yorig = ref.coords[Yvar].values[:-1]
     Xorig = ref.coords[Xvar].values
 
-    # define scanning window size
-    Ysize = np.abs(np.round(Yres/Yorig_res).astype('i'))
-    Xsize = np.abs(np.round(Xres/Xorig_res).astype('i'))
-
     # define destination lat / lon arrays
-    Ydest = np.arange(N-Yres/2.,S,-Yres)
+    Ydest = np.arange(N-np.abs(Yres)/2.,S,-Yres)
     Xdest = np.arange(W+Xres/2.,E,Xres)
-
     # calculate grid cell area
     areas = gst.calculate_cell_areas(Yorig,Xorig,projected=projected)
-
     # regrid to new resolution
     regridded = {}
     for iv,varname in enumerate(variables):
         print("Regridding variable %s ...             " % (varname))
         # clip variable grid using lat_mask and lon_mask
-        variable = ref.variables[varname].values
+        variable = ref.variables[varname].values[:-1,:]
         # check minimum LAIerror reported - must be at least 0.25m2/m2 or 0.5*LAI
         if varname == 'RMSE':
-            variable[variable==0] = 0.5*ref.variables['LAI'].values[variable==0]
+            variable[variable==0] = 0.5*ref.variables['LAI'].values[:-1,:][variable==0]
             variable[variable<0.25] = 0.25
-        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest,
                                         areas, variable, mask=mask,
                                         aggregation_mode=aggregation_mode[iv])
         regridded[varname]=var_regrid.copy()

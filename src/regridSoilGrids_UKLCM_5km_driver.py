@@ -22,6 +22,12 @@ The output layers for CARDAMOM are:
 - sand, silt & clay % for 0-30cm
 - sand, silt & clay % for 30-100cm
 """
+dx_target = 0.05
+dy_target = 0.05
+N = 61.25
+S = 49.75
+E = 2.25
+W = -10.5
 
 # Set up directory structure as required
 path2sg = '/disk/scratch/local.2/SoilGrids2/files.isric.org/soilgrids/latest/data/'
@@ -46,10 +52,6 @@ for lc in landcover:
     except:
         print('subdirectory is %s' % path2dest_sub)
 
-W = -10.5
-E = 2.25
-N = 61.25
-S = 49.75
 
 igh = "+proj=igh +lat_0=0 +lon_0=0 +datum=WGS84 +units=m +no_defs" # proj string for Homolosine projection
 sg_url = '/vsicurl?max_retry=3&retry_delay=1&list_dir=no&url=https://files.isric.org/soilgrids/latest/data/'
@@ -126,16 +128,10 @@ for ii,sgvar in enumerate(soilgrids_vars):
         # load in the new raster
         lc_ref = xr.open_rasterio(lc_agg_file_soilgrids)[0]
         lc_id = [1,2,3,4,5,6,10,'_']
-        dx_target = 0.05
-        dy_target = 0.05
 
         # Reset grid
         Yorig = var_000_005.y.values
         Xorig = var_000_005.x.values
-
-        # define scanning window size
-        Ysize = np.abs(np.round(dy_target/dy_orig).astype('i'))
-        Xsize = np.abs(np.round(dx_target/dx_orig).astype('i'))
 
         # define destination lat / lon arrays
         Ydest = np.arange(N-dy_target/2.,S,-dy_target)
@@ -157,7 +153,7 @@ for ii,sgvar in enumerate(soilgrids_vars):
         # weights average
         var = (var_000_005.values*0.05 + var_005_015.values*0.10 +
                 var_015_030.values*0.15)
-        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest,
                                         areas, var, mask=mask, aggregation_mode='mean')
         # write to file
         if sgvar == 'ocd':
@@ -180,7 +176,7 @@ for ii,sgvar in enumerate(soilgrids_vars):
         print('\t30-100cm')
         # weights average
         var = (var_030_060.values*0.30 + var_060_100.values*0.40)
-        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+        var_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest,
                                                 areas, var, mask=mask,
                                                 aggregation_mode='mean')
         # write to file
@@ -245,7 +241,7 @@ for sgvar in ['ocd']:
         if sgvar == 'ocd':
             unc*=10.**-4
 
-        unc_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+        unc_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest,
                                                 areas, unc, mask=mask, aggregation_mode='mean')
 
         nc_out = '%sSOC_000-030cm_uncertainty_%s_5km.nc' % (path2dest_sub,lc)
@@ -262,7 +258,7 @@ for sgvar in ['ocd']:
         if sgvar == 'ocd':
             unc*=10.**-4
 
-        unc_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest, Ysize, Xsize,
+        unc_regrid,fraction=gst.regrid_single(Yorig, Xorig, Ydest, Xdest,
                                                 areas, unc, mask=mask, aggregation_mode='mean')
 
         nc_out = '%sSOC_030-100cm_uncertainty_%s_5km.nc' % (path2dest_sub,lc)
