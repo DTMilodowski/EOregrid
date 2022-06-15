@@ -71,7 +71,7 @@ def regrid_single(Yorig,Xorig,Ydest,Xdest,
     target = np.zeros([Ydest.size,Xdest.size])*np.nan
     fraction = np.zeros(target.shape)*np.nan
     counter = 0
-    
+
     # regridding, here we go!
     for iY, y in enumerate(Ydest):
         slcYsub = abs(Yorig-y)<abs(dy_target/2.)
@@ -101,16 +101,27 @@ def regrid_single(Yorig,Xorig,Ydest,Xdest,
 
                 fraction[iY,iX]=(slcmask*slcarea).sum()/slcarea.sum()
 
-                if aggregation_mode == 'mean':
-                    target[iY,iX] = np.nansum(slcmask*slcdata*slcarea)/np.nansum(slcmask*slcarea)
-                elif aggregation_mode == 'quadrature': # for uncertainties
-                    target[iY,iX] = np.sqrt(np.nansum(((slcmask*slcdata*slcarea)/np.nansum(slcmask*slcarea))**2))
-                elif aggregation_mode == 'sum':
-                    target[iY,iX] = np.nansum(slcmask*slcdata)
-                else: # assume mean if not quadrature
-                    target[iY,iX] = np.nansum(slcmask*slcdata*slcarea)/np.nansum(slcmask*slcarea)
+                # check whether there is any data
+                slcmask_filter_nodata = np.isfinite(slcdata)*slcmask
+                if slcmask_filter_nodata.sum() != 0:
+                    if aggregation_mode == 'mean':
+                        target[iY,iX] = np.nansum(slcmask_filter_nodata*slcdata*slcarea)/np.nansum(slcmask_filter_nodata*slcarea)
+                    elif aggregation_mode == 'quadrature': # for uncertainties
+                        target[iY,iX] = np.sqrt(np.nansum(((slcmask_filter_nodata*slcdata*slcarea)/np.nansum(slcmask_filter_nodata*slcarea))**2))
+                    elif aggregation_mode == 'sum':
+                        target[iY,iX] = np.nansum(slcmask*slcdata)
+                    else: # assume mean if not quadrature
+                        target[iY,iX] = np.nansum(slcmask*slcdata*slcarea)/np.nansum(slcmask*slcarea)
 
     return target,fraction
+
+"""
+extract nearest neighbour for a point source
+"""
+def find_nearest_row_col(Xloc,Yloc,Xref,Yref):
+    row = np.argmin(np.abs(Yref-Yloc))
+    col = np.argmin(np.abs(Xref-Xloc))
+    return row,col
 
 """
 def regrid_temporal(Yorig,Xorig,Ydest,Xdest,Ysize,Xsize,time,
