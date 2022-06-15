@@ -16,7 +16,7 @@ path2lai = '/disk/scratch/local.2/copernicus/LAI_300m/'
 path2output = '~/' #'/path/to/output/'
 
 # list of lai files to be processed
-lai_files = glob.glob('%s*PROBAV*.nc' % path2lai)
+lai_files = glob.glob('%s*.nc' % path2lai)
 lai_files.sort()
 n_lai=len(lai_files)
 query_variables = ['LAI','RMSE','QFLAG']
@@ -31,12 +31,14 @@ ds = xr.open_dataset(lai_files[0])
 lon_ref = ds.lon.values
 lat_ref = ds.lat.values
 ds=None
+final = {}
 # now loop through the sites and extract all the data
 for ii in range(0,n_sites):
     lai_info = {}
     for var in query_variables:
         lai_info[var] = np.zeros(n_lai)*np.nan
     lai_info['date'] = np.zeros(n_lai,dtype='U8')
+    lai_info['version'] = np.zeros(n_lai,dtype='U5')
     site = sites.iloc[ii]
     print('processing lai time series for %s' % site.Site_code)
     row,col = find_nearest_row_col(site.Lon,site.Lat,lon_ref,lat_ref)
@@ -46,11 +48,16 @@ for ii in range(0,n_sites):
         print('\tprocessing... %.1f percent' % (float(jj)/float(n_lai)*100), end='\r')
         ds = xr.open_dataset(lai_file)
         for var in query_variables:
-            lai_info[var][jj] = float(ds[var][row,col].values)
+            if 'PROBAV' in lai_file:
+                lai_info[var][jj] = float(ds[var][row,col].values)
+            else:
+                lai_info[var][jj] = float(ds[var][0,row,col].values)
         lai_info['date'][jj] = lai_file.split('/')[-1][10:18]
+        lai_info['version'][jj] = lai_file[-8:-3]
         ds=None
     print('\tprocessing... done!                 ')
     # combine into pandas dataframe and write to a csv file
     df = pd.DataFrame(lai_info)
     outfile = '%s/copernicus_lai_300m_%s_nearest.csv' % (path2output,site.Site_code)
+    final[site.Site_code]=df
     df.to_csv(outfile)
