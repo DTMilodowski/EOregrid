@@ -3,7 +3,7 @@ import glob
 import xarray as xr #xarray to read all types of formats
 import rasterio
 from osgeo import gdal
-import osr
+#import osr
 
 """
 load_geotiff
